@@ -72,7 +72,7 @@ export interface ActionResult {
  */
 export function runAdbCommand(command: string[], retries = Config.MAX_RETRIES): string {
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const result = Bun.spawnSync([Config.ADB_PATH, ...command], {
+    const result = Bun.spawnSync([Config.ADB_PATH, "-s", "localhost:5555", ...command], {
       stdout: "pipe",
       stderr: "pipe",
     });

@@ -43,8 +43,8 @@ export const SCREEN_CENTER_Y = 1200;
 export const SWIPE_COORDS: Record<string, [number, number, number, number]> = {
   up: [SCREEN_CENTER_X, 1500, SCREEN_CENTER_X, 500],
   down: [SCREEN_CENTER_X, 500, SCREEN_CENTER_X, 1500],
-  left: [800, SCREEN_CENTER_Y, 200, SCREEN_CENTER_Y],
-  right: [200, SCREEN_CENTER_Y, 800, SCREEN_CENTER_Y],
+  left: [540, 1000, 50, 1000],
+  right: [540, 1000, 1030, 1000],
 };
 
 /**
@@ -61,8 +61,8 @@ export function computeSwipeCoords(
   const vTop = Math.floor(height * 0.208);
   const vBottom = Math.floor(height * 0.625);
   // Horizontal swipe: from 74% to 18.5% of width (mirrors 800→200 on 1080w)
-  const hLeft = Math.floor(width * 0.185);
-  const hRight = Math.floor(width * 0.741);
+  const hLeft = Math.floor(width * 0.10);
+  const hRight = Math.floor(width * 0.90);
 
   return {
     up: [cx, vBottom, cx, vTop],
@@ -71,7 +71,7 @@ export function computeSwipeCoords(
     right: [hLeft, cy, hRight, cy],
   };
 }
-export const SWIPE_DURATION_MS = "300";
+export const SWIPE_DURATION_MS = "150";
 export const LONG_PRESS_DURATION_MS = "1000";
 
 // ===========================================

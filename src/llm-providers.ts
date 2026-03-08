@@ -265,7 +265,7 @@ class OpenAIProvider implements LLMProvider {
         baseURL: GROQ_API_BASE_URL,
       });
       this.model = Config.GROQ_MODEL;
-      this.capabilities = { supportsImages: false, supportsStreaming: true };
+      this.capabilities = { supportsImages: true, supportsStreaming: true }; // Patched: Llama 4 Scout supports vision
     } else if (Config.LLM_PROVIDER === "ollama") {
       this.client = new OpenAI({
         apiKey: "ollama", // required by the SDK but ignored by Ollama
@@ -300,7 +300,7 @@ class OpenAIProvider implements LLMProvider {
               type: "image_url" as const,
               image_url: {
                 url: `data:${part.mimeType};base64,${part.base64}`,
-                detail: "low" as const,
+                detail: "auto" as const,
               },
             };
           }

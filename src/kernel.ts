@@ -94,16 +94,47 @@ function getScreenState(): ScreenState {
  */
 function captureScreenshotBase64(): string | null {
   try {
+    // Fast path: exec-out pipes PNG directly, no write+pull round trip
+    const result = Bun.spawnSync([Config.ADB_PATH, "-s", "localhost:5555", "exec-out", "screencap", "-p"], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const buffer = result.stdout;
+    if (buffer && buffer.length > 100) {
+      return Buffer.from(buffer).toString("base64");
+    }
+    // Fallback to old method if exec-out fails
+    console.log("exec-out failed, falling back to screencap+pull");
     runAdbCommand(["shell", "screencap", "-p", DEVICE_SCREENSHOT_PATH]);
     runAdbCommand(["pull", DEVICE_SCREENSHOT_PATH, LOCAL_SCREENSHOT_PATH]);
     if (existsSync(LOCAL_SCREENSHOT_PATH)) {
-      const buffer = readFileSync(LOCAL_SCREENSHOT_PATH);
-      return Buffer.from(buffer).toString("base64");
+      const buf = readFileSync(LOCAL_SCREENSHOT_PATH);
+      const b64 = Buffer.from(buf).toString("base64");
+      try { require("fs").unlinkSync(LOCAL_SCREENSHOT_PATH); } catch {}
+      runAdbCommand(["shell", "rm", "-f", DEVICE_SCREENSHOT_PATH]);
+      return b64;
     }
   } catch {
     console.log("Warning: Screenshot capture failed.");
   }
   return null;
+}
+
+function stripOldImages(messages: any[]): any[] {
+  const result = [...messages];
+  let lastUserIdx = -1;
+  for (let i = result.length - 1; i >= 0; i--) {
+    if (result[i].role === "user" && Array.isArray(result[i].content)) {
+      lastUserIdx = i;
+      break;
+    }
+  }
+  for (let i = 0; i < result.length; i++) {
+    if (i !== lastUserIdx && Array.isArray(result[i].content)) {
+      result[i] = { ...result[i], content: result[i].content.filter((p: any) => p.type === "text") };
+    }
+  }
+  return result;
 }
 
 // ===========================================
@@ -218,8 +249,18 @@ export async function runAgent(goal: string, maxSteps?: number): Promise<{ succe
     console.log(`\n--- Step ${step + 1}/${steps} ---`);
 
     // 1. Perception: Capture screen state
-    console.log("Scanning screen...");
-    const { elements, compactJson: screenContext } = getScreenState();
+    // OPTIMIZATION: Skip uiautomator dump when using vision-only (saves ~14s per step)
+    let elements: UIElement[] = [];
+    let screenContext = "";
+    if (Config.VISION_MODE !== "always") {
+      console.log("Scanning screen (UI dump)...");
+      const state = getScreenState();
+      elements = state.elements;
+      screenContext = state.compactJson;
+    } else {
+      console.log("Vision-only mode — skipping UI dump");
+      screenContext = "VISION_ONLY: Use the attached screenshot to identify UI elements and their positions.";
+    }
 
     // 1B. Foreground app detection
     const foregroundApp = getForegroundApp();
@@ -322,6 +363,9 @@ export async function runAgent(goal: string, maxSteps?: number): Promise<{ succe
       Config.VISION_MODE === "always" ||
       (Config.VISION_MODE === "fallback" && elements.length === 0) ||
       isStuckVision;
+    
+    // In vision-only mode, always skip the empty-elements fallback text
+    const isVisionOnly = Config.VISION_MODE === "always";
 
     if (shouldCaptureVision) {
       screenshotBase64 = captureScreenshotBase64();
@@ -367,7 +411,7 @@ export async function runAgent(goal: string, maxSteps?: number): Promise<{ succe
     messages.push({ role: "user", content: userContent });
 
     // Trim messages to keep within history limit
-    const trimmed = trimMessages(messages, Config.MAX_HISTORY_STEPS);
+    const trimmed = stripOldImages(trimMessages(messages, Config.MAX_HISTORY_STEPS));
 
     // 5. Reasoning: Get LLM decision
     const llmStart = performance.now();
