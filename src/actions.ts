@@ -301,6 +301,20 @@ function validateCoordinates(
 // Original actions (enhanced)
 // ===========================================
 
+
+/**
+ * Fast input via InputBridge daemon (persistent JVM, ~0.05s vs ~8.5s).
+ * Falls back gracefully if InputBridge is not running.
+ */
+function inputBridgeCommand(cmd: string): boolean {
+  try {
+    const result = Bun.spawnSync(["bash", "-c", `echo '${cmd}' | nc -w2 localhost 18091`], {
+      stdout: "pipe", stderr: "pipe", timeout: 5000,
+    });
+    return result.stdout.toString().trim() === "ok";
+  } catch { return false; }
+}
+
 function executeTap(action: ActionDecision): ActionResult {
   const coords = validateCoordinates(action.coordinates);
   if (!coords) {
@@ -309,7 +323,10 @@ function executeTap(action: ActionDecision): ActionResult {
   }
   const [x, y] = coords;
   console.log(`Tapping: (${x}, ${y})`);
-  runAdbCommand(["shell", "input", "tap", String(x), String(y)]);
+  if (!inputBridgeCommand(`tap ${x} ${y}`)) {
+    console.log("InputBridge unavailable, falling back to adb");
+    runAdbCommand(["shell", "input", "tap", String(x), String(y)]);
+  }
   return { success: true, message: `Tapped (${x}, ${y})` };
 }
 
