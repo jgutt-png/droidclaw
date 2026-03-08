@@ -108,7 +108,7 @@ import sys, base64
 from io import BytesIO
 from PIL import Image
 img = Image.open(BytesIO(sys.stdin.buffer.read())).convert("RGB")
-img = img.resize((540, int(img.height * 540 / img.width)), Image.LANCZOS)
+img = img.resize((540, int(img.height * 540 / img.width)), Image.BILINEAR)
 buf = BytesIO()
 img.save(buf, format="JPEG", quality=70)
 sys.stdout.write(base64.b64encode(buf.getvalue()).decode())
